@@ -1,8 +1,7 @@
-package com.moralesbang.opencvandroid;
+package com.royk.appcpp;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.graphics.Camera;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.SurfaceView;
@@ -18,15 +17,26 @@ import org.opencv.core.MatOfPoint;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 
-public class MainActivity extends CameraActivity {
+public class MainActivitycpp extends CameraActivity {
 
     private static String LOGCAT = "OpenCV_Log";
     private CameraBridgeViewBase mOpenCvCameraView;
+    private File cascadeFile;
 
+    static {
+        System.loadLibrary("appcpp");
+    }
 
+    public native void FindFeatures(long addrGray, long addrRGB);
+    public native void InitFaceDetector(String filePath);
+    public native void DetectFaces(long addrGray, long addrRGB);
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
@@ -49,7 +59,25 @@ public class MainActivity extends CameraActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main_activitycpp);
+
+        try{
+            cascadeFile = new File(getCacheDir(), "haarcascade_frontalface_default.xml");
+            if(!cascadeFile.exists()){
+                InputStream inputStream = getAssets().open("haarcascade_frontalface_default.xml");
+                FileOutputStream outputStream = new FileOutputStream(cascadeFile);
+                byte[] buffer = new byte[2048];
+                int bytesRead = -1;
+                while ((bytesRead = inputStream.read(buffer)) != -1){
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                inputStream.close();
+                outputStream.close();
+            }
+            InitFaceDetector(cascadeFile.getAbsolutePath());
+        }catch (IOException e){
+            e.printStackTrace();
+        }
 
         mOpenCvCameraView = (CameraBridgeViewBase) findViewById(R.id.opencv_surface_view);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
@@ -77,13 +105,9 @@ public class MainActivity extends CameraActivity {
             Mat inputRgba = inputFrame.rgba();
             Mat inputGray = inputFrame.gray();
 
-            MatOfPoint corners = new MatOfPoint();
-            Imgproc.goodFeaturesToTrack(inputGray, corners, 20, 0.01, 10, new Mat(), 3, false);
-            Point[] cornersArr = corners.toArray();
-
-            for(int i = 0; i < corners.row(); i++) {
-                Imgproc.circle(inputRgba, cornersArr[i], 10, new Scalar(0, 255, 0), 2);
-            }
+            // Process the frame in cpp
+            //FindFeatures(inputGray.getNativeObjAddr(), inputRgba.getNativeObjAddr());
+            DetectFaces(inputGray.getNativeObjAddr(), inputRgba.getNativeObjAddr());
 
             return inputRgba;
         }
@@ -115,5 +139,4 @@ public class MainActivity extends CameraActivity {
             mOpenCvCameraView.disableView();
         }
     }
-
 }
